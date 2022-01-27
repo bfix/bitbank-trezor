@@ -1,0 +1,86 @@
+[
+    {
+        "symb": "btc",
+        "path": "m/49'/0'/0'",
+        "mode": "P2SH",
+        "pk": "",
+        "addr": ""
+    },
+    {
+        "symb": "bch",
+        "path": "m/44'/145'/0'",
+        "mode": "P2PKH",
+        "pk": "",
+        "addr": ""
+    },
+    {
+        "symb": "btg",
+        "path": "m/49'/156'/0'",
+        "mode": "P2SH",
+        "pk": "",
+        "addr": ""
+    },
+    {
+        "symb": "dash",
+        "path": "m/44'/5'/0'",
+        "mode": "P2PKH",
+        "pk": "",
+        "addr": ""
+    },
+    {
+        "symb": "dgb",
+        "path": "m/49'/20'/0'",
+        "mode": "P2SH",
+        "pk": "",
+        "addr": ""
+    },
+    {
+        "symb": "doge",
+        "path": "m/44'/3'/0'",
+        "mode": "P2PKH",
+        "pk": "",
+        "addr": ""
+    },
+    {
+        "symb": "ltc",
+        "path": "m/49'/2'/0'",
+        "mode": "P2SH",
+        "pk": "",
+        "addr": ""
+    },
+    {
+        "symb": "nmc",
+        "path": "m/44'/7'/0'",
+        "mode": "P2PKH",
+        "pk": "",
+        "addr": ""
+    },
+    {
+        "symb": "vtc",
+        "path": "m/49'/28'/0'",
+        "mode": "P2SH",
+        "pk": "",
+        "addr": ""
+    },
+    {
+        "symb": "zec",
+        "path": "m/44'/133'/0'",
+        "mode": "P2PKH",
+        "pk": "",
+        "addr": ""
+    },
+    {
+        "symb": "eth",
+        "path": "m/44'/60'/0'/0",
+        "mode": "",
+        "pk": "",
+        "addr": ""
+    },
+    {
+        "symb": "etc",
+        "path": "m/44'/61'/0'/0",
+        "mode": "",
+        "pk": "",
+        "addr": ""
+    }
+]
