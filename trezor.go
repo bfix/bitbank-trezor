@@ -171,25 +171,34 @@ func (t *Trezor) Ping() (err error) {
 // (coin-agnostic; BIP-39 compatible multi-coin path)
 func (t *Trezor) DeriveAddress(path, coin, mode string) (addr string, err error) {
 	// decode path
-	pathInts := splitPath(path)
+	pathInts := splitPath(path, 5)
 	if pathInts == nil {
 		err = ErrTrezorAddrPath
 		return
 	}
-	// request address
-	scriptType := scriptType(mode)
-	coinName := coinName(coin)
-	addrMsg := &protob.Address{}
-
-	if err = t.handleExchange(
-		&protob.GetAddress{
+	var req protoreflect.ProtoMessage
+	// handle special coins
+	if coin == "eth" || coin == "etc" {
+		req = &protob.EthereumGetAddress{
+			AddressN: pathInts,
+		}
+		addrMsg := &protob.EthereumAddress{}
+		if err = t.handleExchange(req, addrMsg); err == nil {
+			addr = strings.ToLower(addrMsg.GetAddress())
+		}
+	} else {
+		// request generic address
+		scriptType := scriptType(mode)
+		coinName := coinName(coin)
+		req = &protob.GetAddress{
 			AddressN:   pathInts,
 			CoinName:   &coinName,
 			ScriptType: &scriptType,
-		},
-		addrMsg,
-	); err == nil {
-		addr = addrMsg.GetAddress()
+		}
+		addrMsg := &protob.Address{}
+		if err = t.handleExchange(req, addrMsg); err == nil {
+			addr = addrMsg.GetAddress()
+		}
 	}
 	// special post-processing
 	addr = strings.Replace(addr, "bitcoincash:", "", 1)
@@ -197,23 +206,35 @@ func (t *Trezor) DeriveAddress(path, coin, mode string) (addr string, err error)
 }
 
 // PublicMaster returns the master public key for given derivation path
-func (t *Trezor) PublicMaster(path, mode string) (pk string, err error) {
+func (t *Trezor) PublicMaster(path, coin, mode string) (pk string, err error) {
 	// decode path
-	pathInts := splitPath(path)
+	pathInts := splitPath(path, 3)
 	if pathInts == nil {
 		err = ErrTrezorAddrPath
 		return
 	}
-	scriptType := scriptType(mode)
-	pkMsg := &protob.PublicKey{}
-	if err = t.handleExchange(
-		&protob.GetPublicKey{
+	// handle special coins
+	var req protoreflect.ProtoMessage
+	if coin == "eth" || coin == "etc" {
+		req = &protob.EthereumGetPublicKey{
+			AddressN: pathInts,
+		}
+		pkMsg := &protob.EthereumPublicKey{}
+		if err = t.handleExchange(req, pkMsg); err == nil {
+			pk = pkMsg.GetXpub()
+		}
+	} else {
+		scriptType := scriptType(mode)
+		coinName := coinName(coin)
+		req = &protob.GetPublicKey{
 			AddressN:   pathInts,
+			CoinName:   &coinName,
 			ScriptType: &scriptType,
-		},
-		pkMsg,
-	); err == nil {
-		pk = pkMsg.GetXpub()
+		}
+		pkMsg := &protob.PublicKey{}
+		if err = t.handleExchange(req, pkMsg); err == nil {
+			pk = pkMsg.GetXpub()
+		}
 	}
 	return
 }
@@ -428,7 +449,7 @@ func (t *Trezor) write(data []byte) (int, error) {
 // Helper functions
 //----------------------------------------------------------------------
 
-func splitPath(path string) []uint32 {
+func splitPath(path string, n int) []uint32 {
 	// decode path
 	if !strings.HasPrefix(path, "m/") {
 		return nil
@@ -451,6 +472,9 @@ func splitPath(path string) []uint32 {
 			return nil
 		}
 		pathInts = append(pathInts, i)
+	}
+	for len(pathInts) < n {
+		pathInts = append(pathInts, 0)
 	}
 	return pathInts
 }
@@ -490,10 +514,6 @@ func coinName(symb string) (name string) {
 		name = "Vertcoin"
 	case "zec":
 		name = "Zcash"
-	case "eth":
-		name = "Ethereum"
-	case "etc":
-		name = ""
 	}
 	return
 }

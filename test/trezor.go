@@ -67,12 +67,9 @@ func main() {
 		fmt.Println("-----------------------------------")
 		fmt.Printf("Coin: %s:\n", td.Symb)
 		path := td.Path
-		//		for strings.Count(path, "/") < 3 {
-		//			path += "/0"
-		//		}
 		fmt.Printf("   Base path: %s\n", path)
 		// get public master
-		pk, err := trezor.PublicMaster(path, td.Mode)
+		pk, err := trezor.PublicMaster(path, td.Symb, td.Mode)
 		if err != nil {
 			fmt.Println("PublicMaster: " + err.Error())
 			continue
@@ -83,7 +80,7 @@ func main() {
 		}
 
 		// get first address
-		addr, err := trezor.DeriveAddress(path+"/0/0", td.Symb, td.Mode)
+		addr, err := trezor.DeriveAddress(path, td.Symb, td.Mode)
 		if err != nil {
 			fmt.Println("DeriveAddress: " + err.Error())
 			continue
