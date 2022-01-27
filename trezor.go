@@ -58,11 +58,6 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-// PinEntry interface for PIN/password dialogs
-type PinEntry interface {
-	Ask(prompt string) string
-}
-
 // Trezor device
 type Trezor struct {
 	dev      *gousb.Device  // USB device
@@ -93,6 +88,8 @@ var (
 	ErrTrezorPINNeeded      = errors.New("pin needed")
 	ErrTrezorPasswordNeeded = errors.New("password required")
 	ErrTrezorAddrPath       = errors.New("invalid address path")
+	ErrTrezorPINCancelled   = errors.New("pin cancelled")
+	ErrTrezorPINInvalid     = errors.New("pin invalid")
 )
 
 // data (message) used to check for protocol version
@@ -170,54 +167,12 @@ func (t *Trezor) Ping() (err error) {
 	return
 }
 
-// Unlock a device: may require PIN and/or password entry
-func (t *Trezor) Unlock() (err error) {
-	// get device status
-	var res int
-	if res, _, err = t.exchange(
-		&protob.Ping{},
-		new(protob.PinMatrixRequest),
-		new(protob.PassphraseRequest),
-		new(protob.Success),
-	); err == nil {
-		if res == 0 {
-			// PIN required
-			pin := t.pe.Ask("PIN")
-			if len(pin) == 0 {
-				err = ErrTrezorPINNeeded
-			} else {
-				if res, _, err = t.exchange(
-					&protob.PinMatrixAck{
-						Pin: &pin},
-					new(protob.Success),
-					new(protob.PassphraseRequest),
-				); err != nil {
-					return
-				}
-			}
-		}
-		if res == 1 {
-			// Password required? Ask for it:
-			passwd := t.pe.Ask("Password")
-			if len(passwd) == 0 {
-				err = ErrTrezorPasswordNeeded
-			} else {
-				_, _, err = t.exchange(
-					&protob.PassphraseAck{
-						Passphrase: &passwd,
-					},
-					new(protob.Success),
-				)
-			}
-		}
-	}
-	return
-}
-
-func (t *Trezor) DeriveAddress(path string) (addr *protob.Address, err error) {
+// DeriveAddress returns an address referenced by the derivation path
+// (coin-agnostic; BIP-39 compatible multi-coin path)
+func (t *Trezor) DeriveAddress(path, coin, mode string) (addr string, err error) {
 	// decode path
 	if !strings.HasPrefix(path, "m/") {
-		return nil, ErrTrezorAddrPath
+		return "", ErrTrezorAddrPath
 	}
 	pathInts := make([]uint32, 0)
 	for _, id := range strings.Split(path[2:], "/") {
@@ -238,15 +193,22 @@ func (t *Trezor) DeriveAddress(path string) (addr *protob.Address, err error) {
 		pathInts = append(pathInts, i)
 	}
 	// request address
-	addr = &protob.Address{}
+	scriptType := scriptType(mode)
+	coinName := coinName(coin)
+	addrMsg := &protob.Address{}
+
 	if err = t.handleExchange(
 		&protob.GetAddress{
-			AddressN: pathInts,
+			AddressN:   pathInts,
+			CoinName:   &coinName,
+			ScriptType: &scriptType,
 		},
-		addr,
-	); err != nil {
-		addr = &protob.Address{}
+		addrMsg,
+	); err == nil {
+		addr = addrMsg.GetAddress()
 	}
+	// special post-processing
+	addr = strings.Replace(addr, "bitcoincash:", "", 1)
 	return
 }
 
@@ -254,31 +216,34 @@ func (t *Trezor) DeriveAddress(path string) (addr *protob.Address, err error) {
 // Low-level message exchange and read/write operations.
 //----------------------------------------------------------------------
 
-func (t *Trezor) handleExchange(req protoreflect.ProtoMessage, results ...protoreflect.ProtoMessage) error {
+// handleExchange with signal handling: Should a request require the
+// processing of another request (like PIN/Password entry) first, this
+// requirement is handled by this function.
+func (t *Trezor) handleExchange(req protoreflect.ProtoMessage, results ...protoreflect.ProtoMessage) (err error) {
+	var sig int
 	for {
 		// perform exchange
-		_, sig, err := t.exchange(req, results...)
-		if err != nil {
-			return err
+		if _, sig, err = t.exchange(req, results...); err != nil {
+			return
 		}
 		// handle signals
-		if done, err := t.handleSignal(sig); err == nil && done {
-			if err != nil {
-				return err
-			}
+		var done bool
+		if done, err = t.handleSignal(sig, results); err == nil && done {
+			// we handled the signal and can re-try the original request
 			continue
 		}
-		break
+		return
 	}
-	return nil
 }
 
-func (t *Trezor) handleSignal(sig int) (done bool, err error) {
+// handleSignal performs the logic associated with given signal. It
+// returns "done=true" if the signal was handled.
+func (t *Trezor) handleSignal(sig int, results []protoreflect.ProtoMessage) (done bool, err error) {
 	var res int
 	done = false
 	if sig == sig_PinNeeded {
 		// PIN required? Ask for it:
-		pin := t.pe.Ask("PIN")
+		pin := t.pe.Ask("PIN", true)
 		if len(pin) == 0 {
 			err = ErrTrezorPINNeeded
 			return
@@ -288,6 +253,7 @@ func (t *Trezor) handleSignal(sig int) (done bool, err error) {
 				Pin: &pin},
 			new(protob.Success),
 			new(protob.PassphraseRequest),
+			results[0],
 		); err != nil {
 			return
 		}
@@ -299,7 +265,7 @@ func (t *Trezor) handleSignal(sig int) (done bool, err error) {
 	}
 	if sig == sig_PasswordNeeded {
 		// Password required? Ask for it:
-		passwd := t.pe.Ask("Password")
+		passwd := t.pe.Ask("Password", false)
 		if len(passwd) == 0 {
 			err = ErrTrezorPasswordNeeded
 			return
@@ -387,7 +353,14 @@ func (t *Trezor) exchange(req proto.Message, results ...proto.Message) (res, sig
 		// Trezor returned a failure, extract and return the message
 		failure := new(protob.Failure)
 		if err = proto.Unmarshal(reply, failure); err == nil {
-			err = fmt.Errorf("trezor: %s", failure.GetMessage())
+			switch failure.GetMessage() {
+			case "PIN cancelled":
+				err = ErrTrezorPINCancelled
+			case "PIN invalid":
+				err = ErrTrezorPINInvalid
+			default:
+				err = fmt.Errorf("trezor: %s", failure.GetMessage())
+			}
 		}
 		return
 	}
@@ -417,6 +390,7 @@ func (t *Trezor) exchange(req proto.Message, results ...proto.Message) (res, sig
 	return
 }
 
+// read data from the low-level interface endpoint
 func (t *Trezor) read(data []byte) (int, error) {
 	intf, done, err := t.dev.DefaultInterface()
 	if err != nil {
@@ -430,6 +404,7 @@ func (t *Trezor) read(data []byte) (int, error) {
 	return ep.Read(data)
 }
 
+// write data to the low-level interface endpoint
 func (t *Trezor) write(data []byte) (int, error) {
 	intf, done, err := t.dev.DefaultInterface()
 	if err != nil {
@@ -441,4 +416,51 @@ func (t *Trezor) write(data []byte) (int, error) {
 		return 0, err
 	}
 	return ep.Write(data)
+}
+
+//----------------------------------------------------------------------
+// Helper functions
+//----------------------------------------------------------------------
+
+// scriptType translates a mode string into a Trezor input scipt type
+func scriptType(mode string) (st protob.InputScriptType) {
+	st = protob.InputScriptType_EXTERNAL
+	switch mode {
+	case "P2PKH":
+		st = protob.InputScriptType_SPENDADDRESS
+	case "P2SH":
+		st = protob.InputScriptType_SPENDP2SHWITNESS
+	}
+	return
+}
+
+// coinName translate a coin ticker symbol into a Trezor coin name
+func coinName(symb string) (name string) {
+	switch symb {
+	case "btc":
+		name = "Bitcoin"
+	case "bch":
+		name = "Bcash"
+	case "btg":
+		name = "Bgold"
+	case "dash":
+		name = "Dash"
+	case "dgb":
+		name = "DigiByte"
+	case "doge":
+		name = "Dogecoin"
+	case "ltc":
+		name = "Litecoin"
+	case "nmc":
+		name = "Namecoin"
+	case "vtc":
+		name = "Vertcoin"
+	case "zec":
+		name = "Zcash"
+	case "eth":
+		name = "Ethereum"
+	case "etc":
+		name = ""
+	}
+	return
 }
