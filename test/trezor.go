@@ -22,6 +22,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -38,9 +39,12 @@ type testData struct {
 }
 
 func main() {
+	var fname string
+	flag.StringVar(&fname, "i", "testdata.json", "Name of JSON-encode test data file")
+	flag.Parse()
 
 	testData := make([]*testData, 0)
-	data, err := ioutil.ReadFile("testdata.json")
+	data, err := ioutil.ReadFile(fname)
 	if err != nil {
 		log.Fatal(err)
 	}

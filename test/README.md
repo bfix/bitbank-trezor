@@ -84,6 +84,9 @@ Run the executable file `test` from the command line:
 ./test
 ```
 
+By default it tries to load the test data from `testdata.json`; you can use
+the `-i` flag to hand in a different file (of same format).
+
 Make sure a Trezor is connected via USB with the computer.
 
 ### pin/password entry
