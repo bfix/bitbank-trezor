@@ -171,26 +171,10 @@ func (t *Trezor) Ping() (err error) {
 // (coin-agnostic; BIP-39 compatible multi-coin path)
 func (t *Trezor) DeriveAddress(path, coin, mode string) (addr string, err error) {
 	// decode path
-	if !strings.HasPrefix(path, "m/") {
-		return "", ErrTrezorAddrPath
-	}
-	pathInts := make([]uint32, 0)
-	for _, id := range strings.Split(path[2:], "/") {
-		var (
-			j int64
-			i uint32
-		)
-		if strings.HasSuffix(id, "'") {
-			j, err = strconv.ParseInt(id[:len(id)-1], 10, 32)
-			i = uint32(j) + (1 << 31)
-		} else {
-			j, err = strconv.ParseInt(id, 10, 32)
-			i = uint32(j)
-		}
-		if err != nil {
-			return
-		}
-		pathInts = append(pathInts, i)
+	pathInts := splitPath(path)
+	if pathInts == nil {
+		err = ErrTrezorAddrPath
+		return
 	}
 	// request address
 	scriptType := scriptType(mode)
@@ -209,6 +193,28 @@ func (t *Trezor) DeriveAddress(path, coin, mode string) (addr string, err error)
 	}
 	// special post-processing
 	addr = strings.Replace(addr, "bitcoincash:", "", 1)
+	return
+}
+
+// PublicMaster returns the master public key for given derivation path
+func (t *Trezor) PublicMaster(path, mode string) (pk string, err error) {
+	// decode path
+	pathInts := splitPath(path)
+	if pathInts == nil {
+		err = ErrTrezorAddrPath
+		return
+	}
+	scriptType := scriptType(mode)
+	pkMsg := &protob.PublicKey{}
+	if err = t.handleExchange(
+		&protob.GetPublicKey{
+			AddressN:   pathInts,
+			ScriptType: &scriptType,
+		},
+		pkMsg,
+	); err == nil {
+		pk = pkMsg.GetXpub()
+	}
 	return
 }
 
@@ -421,6 +427,33 @@ func (t *Trezor) write(data []byte) (int, error) {
 //----------------------------------------------------------------------
 // Helper functions
 //----------------------------------------------------------------------
+
+func splitPath(path string) []uint32 {
+	// decode path
+	if !strings.HasPrefix(path, "m/") {
+		return nil
+	}
+	pathInts := make([]uint32, 0)
+	for _, id := range strings.Split(path[2:], "/") {
+		var (
+			j   int64
+			i   uint32
+			err error
+		)
+		if strings.HasSuffix(id, "'") {
+			j, err = strconv.ParseInt(id[:len(id)-1], 10, 32)
+			i = uint32(j) + (1 << 31)
+		} else {
+			j, err = strconv.ParseInt(id, 10, 32)
+			i = uint32(j)
+		}
+		if err != nil {
+			return nil
+		}
+		pathInts = append(pathInts, i)
+	}
+	return pathInts
+}
 
 // scriptType translates a mode string into a Trezor input scipt type
 func scriptType(mode string) (st protob.InputScriptType) {

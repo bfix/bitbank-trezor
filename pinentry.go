@@ -52,5 +52,6 @@ func (e *ConsoleEntry) Ask(prompt string, isPin bool) (in string) {
 	rdr := bufio.NewReader(os.Stdin)
 	data, _, _ := rdr.ReadLine()
 	in = strings.TrimSpace(string(data))
+	fmt.Println()
 	return
 }
