@@ -270,7 +270,7 @@ func (t *Trezor) handleSignal(sig int, results []protoreflect.ProtoMessage) (don
 	done = false
 	if sig == sig_PinNeeded {
 		// PIN required? Ask for it:
-		pin := t.pe.Ask("PIN", true)
+		pin := t.pe.Ask(entryPin)
 		if len(pin) == 0 {
 			err = ErrTrezorPINNeeded
 			return
@@ -292,7 +292,7 @@ func (t *Trezor) handleSignal(sig int, results []protoreflect.ProtoMessage) (don
 	}
 	if sig == sig_PasswordNeeded {
 		// Password required? Ask for it:
-		passwd := t.pe.Ask("Password", false)
+		passwd := t.pe.Ask(entryPasswd)
 		if len(passwd) == 0 {
 			err = ErrTrezorPasswordNeeded
 			return

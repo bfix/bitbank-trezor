@@ -27,17 +27,22 @@ import (
 	"strings"
 )
 
+const (
+	entryPin = iota
+	entryPasswd
+)
+
 // PinEntry interface for PIN/password dialogs
 type PinEntry interface {
-	Ask(prompt string, isPin bool) string
+	Ask(mode int) string
 }
 
 // ConsoleEntry handle PIN/password dialogs on stdin/stdout
 type ConsoleEntry struct{}
 
 // Ask for PIN or passphrase
-func (e *ConsoleEntry) Ask(prompt string, isPin bool) (in string) {
-	if isPin {
+func (e *ConsoleEntry) Ask(mode int) (in string) {
+	if mode == entryPin {
 		fmt.Println()
 		fmt.Println("+---+---+---+")
 		fmt.Println("| 7 | 8 | 9 |")
@@ -47,8 +52,10 @@ func (e *ConsoleEntry) Ask(prompt string, isPin bool) (in string) {
 		fmt.Println("| 1 | 2 | 3 |")
 		fmt.Println("+---+---+---+")
 		fmt.Println()
+		fmt.Printf("PIN? ")
+	} else {
+		fmt.Printf("Password? ")
 	}
-	fmt.Printf("%s? ", prompt)
 	rdr := bufio.NewReader(os.Stdin)
 	data, _, _ := rdr.ReadLine()
 	in = strings.TrimSpace(string(data))
