@@ -18,24 +18,54 @@
 // SPDX-License-Identifier: AGPL3.0-or-later
 //----------------------------------------------------------------------
 
-package trezor
+package main
 
 import (
+	"bufio"
 	"fmt"
-	"testing"
+	"log"
+	"os"
+	"strings"
+
+	"trezor"
 )
 
-func TestTrezor(t *testing.T) {
-	trezor, err := OpenTrezor()
+type ConsoleEntry struct{}
+
+func (e *ConsoleEntry) Ask(prompt string) (in string) {
+	fmt.Printf("%s? ", prompt)
+	rdr := bufio.NewReader(os.Stdin)
+	data, _, _ := rdr.ReadLine()
+	in = strings.TrimSpace(string(data))
+	return
+}
+
+func main() {
+	ce := new(ConsoleEntry)
+	trezor, err := trezor.OpenTrezor(ce)
 	if err != nil {
-		t.Fatal(err)
+		log.Fatal(err)
 	}
-	if t == nil {
-		t.Fatal("no Trezor found")
+	if trezor == nil {
+		log.Fatal("no Trezor found")
 	}
 	defer trezor.Close()
+
 	fmt.Println("Trezor connected:")
-	fmt.Printf("   Protocol: %d\n", trezor.version)
-	fmt.Printf("    Firmare: %d.%d.%d\n", trezor.Firmware[0], trezor.Firmware[1], trezor.Firmware[2])
-	fmt.Printf("      Label: '%s'\n", trezor.Label)
+	fw := trezor.Firmware()
+	fmt.Printf("    Firmare: %d.%d.%d\n", fw[0], fw[1], fw[2])
+	fmt.Printf("      Label: '%s'\n", trezor.Label())
+
+	if err := trezor.Unlock(); err != nil {
+		fmt.Printf("Unlock: %s\n", err.Error())
+	} else {
+		fmt.Println("Device unlocked.")
+	}
+
+	addr, err := trezor.DeriveAddress("m/49'/0'/0'/0/0")
+	if err != nil {
+		fmt.Println("DeriveAddress: " + err.Error())
+		return
+	}
+	fmt.Println("Address: " + addr.String())
 }
