@@ -27,7 +27,7 @@ import (
 	"io/ioutil"
 	"log"
 
-	"trezor"
+	trezor "github.com/bfix/bitbank-trezor"
 )
 
 type testData struct {
@@ -73,7 +73,7 @@ func main() {
 		path := td.Path
 		fmt.Printf("   Base path: %s\n", path)
 		// get public master
-		pk, err := trezor.PublicMaster(path, td.Symb, td.Mode)
+		pk, err := trezor.GetXpub(path, td.Symb, td.Mode)
 		if err != nil {
 			fmt.Println("PublicMaster: " + err.Error())
 			continue
@@ -84,7 +84,7 @@ func main() {
 		}
 
 		// get first address
-		addr, err := trezor.DeriveAddress(path, td.Symb, td.Mode)
+		addr, err := trezor.GetAddress(path, td.Symb, td.Mode)
 		if err != nil {
 			fmt.Println("DeriveAddress: " + err.Error())
 			continue

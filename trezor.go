@@ -51,11 +51,24 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"trezor/protob"
 
+	"github.com/bfix/bitbank-trezor/protob"
 	"github.com/google/gousb"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
+)
+
+//----------------------------------------------------------------------
+// Trezor device management
+//----------------------------------------------------------------------
+
+// Error codes
+var (
+	ErrTrezorPINNeeded      = errors.New("pin needed")
+	ErrTrezorPasswordNeeded = errors.New("password required")
+	ErrTrezorAddrPath       = errors.New("invalid address path")
+	ErrTrezorPINCancelled   = errors.New("pin cancelled")
+	ErrTrezorPINInvalid     = errors.New("pin invalid")
 )
 
 // Trezor device
@@ -67,34 +80,10 @@ type Trezor struct {
 	pe       PinEntry       // associated entry dialog
 }
 
-//----------------------------------------------------------------------
-// Trezor device management
-//----------------------------------------------------------------------
-
-// USB identifiers (vendor:product) of Trezor devices
-// (Trezor One, Trezor Model T)
-const (
-	trezorVendor  = 0x1209
-	trezorProduct = 0x53c1
-
-	sig_fail = iota - 1
-	sig_none
-	sig_PinNeeded
-	sig_PasswordNeeded
-)
-
-// Error codes
-var (
-	ErrTrezorPINNeeded      = errors.New("pin needed")
-	ErrTrezorPasswordNeeded = errors.New("password required")
-	ErrTrezorAddrPath       = errors.New("invalid address path")
-	ErrTrezorPINCancelled   = errors.New("pin cancelled")
-	ErrTrezorPINInvalid     = errors.New("pin invalid")
-)
-
-// data (message) used to check for protocol version
-var versionCheck = [65]byte{
-	0, 63, 255, 255, 255, // ... 60 bytes following
+// Processor interface for common methods
+type Processor interface {
+	GetAddress(dev *Trezor, path []uint32, coin, mode string) (addr string, err error)
+	GetXpub(dev *Trezor, path []uint32, coin, mode string) (pk string, err error)
 }
 
 // OpenTrezor: open a Trezor connected via USB
@@ -161,6 +150,27 @@ func (t *Trezor) Label() string {
 // High-level device methods (functionality)
 //----------------------------------------------------------------------
 
+var (
+	insts = []Processor{
+		new(BitcoinProc),
+		new(EthereumProc),
+	}
+	procs = map[string]Processor{
+		"btc":  insts[0],
+		"bch":  insts[0],
+		"btg":  insts[0],
+		"dash": insts[0],
+		"dgb":  insts[0],
+		"doge": insts[0],
+		"ltc":  insts[0],
+		"nmc":  insts[0],
+		"vtc":  insts[0],
+		"zec":  insts[0],
+		"eth":  insts[1],
+		"etc":  insts[1],
+	}
+)
+
 // Ping a device to see if it is still online.
 func (t *Trezor) Ping() (err error) {
 	_, _, err = t.exchange(&protob.Ping{}, new(protob.Success))
@@ -169,79 +179,57 @@ func (t *Trezor) Ping() (err error) {
 
 // DeriveAddress returns an address referenced by the derivation path
 // (coin-agnostic; BIP-39 compatible multi-coin path)
-func (t *Trezor) DeriveAddress(path, coin, mode string) (addr string, err error) {
+func (t *Trezor) GetAddress(path, coin, mode string) (addr string, err error) {
 	// decode path
 	pathInts := splitPath(path, 5)
 	if pathInts == nil {
 		err = ErrTrezorAddrPath
 		return
 	}
-	var req protoreflect.ProtoMessage
-	// handle special coins
-	if coin == "eth" || coin == "etc" {
-		req = &protob.EthereumGetAddress{
-			AddressN: pathInts,
-		}
-		addrMsg := &protob.EthereumAddress{}
-		if err = t.handleExchange(req, addrMsg); err == nil {
-			addr = strings.ToLower(addrMsg.GetAddress())
-		}
-	} else {
-		// request generic address
-		scriptType := scriptType(mode)
-		coinName := coinName(coin)
-		req = &protob.GetAddress{
-			AddressN:   pathInts,
-			CoinName:   &coinName,
-			ScriptType: &scriptType,
-		}
-		addrMsg := &protob.Address{}
-		if err = t.handleExchange(req, addrMsg); err == nil {
-			addr = addrMsg.GetAddress()
-		}
+	// get and call processor
+	proc, ok := procs[coin]
+	if !ok {
+		return "", fmt.Errorf("no processor for coin %s", coin)
 	}
-	// special post-processing
-	addr = strings.Replace(addr, "bitcoincash:", "", 1)
-	return
+	return proc.GetAddress(t, pathInts, coin, mode)
 }
 
-// PublicMaster returns the master public key for given derivation path
-func (t *Trezor) PublicMaster(path, coin, mode string) (pk string, err error) {
+// GetXpub returns the master public key for given derivation path
+func (t *Trezor) GetXpub(path, coin, mode string) (pk string, err error) {
 	// decode path
 	pathInts := splitPath(path, 3)
 	if pathInts == nil {
 		err = ErrTrezorAddrPath
 		return
 	}
-	// handle special coins
-	var req protoreflect.ProtoMessage
-	if coin == "eth" || coin == "etc" {
-		req = &protob.EthereumGetPublicKey{
-			AddressN: pathInts,
-		}
-		pkMsg := &protob.EthereumPublicKey{}
-		if err = t.handleExchange(req, pkMsg); err == nil {
-			pk = pkMsg.GetXpub()
-		}
-	} else {
-		scriptType := scriptType(mode)
-		coinName := coinName(coin)
-		req = &protob.GetPublicKey{
-			AddressN:   pathInts,
-			CoinName:   &coinName,
-			ScriptType: &scriptType,
-		}
-		pkMsg := &protob.PublicKey{}
-		if err = t.handleExchange(req, pkMsg); err == nil {
-			pk = pkMsg.GetXpub()
-		}
+	// get and call processor
+	proc, ok := procs[coin]
+	if !ok {
+		return "", fmt.Errorf("no processor for coin %s", coin)
 	}
-	return
+	return proc.GetXpub(t, pathInts, coin, mode)
 }
 
 //----------------------------------------------------------------------
 // Low-level message exchange and read/write operations.
 //----------------------------------------------------------------------
+
+// USB identifiers (vendor:product) of Trezor devices
+// (Trezor One, Trezor Model T)
+const (
+	trezorVendor  = 0x1209
+	trezorProduct = 0x53c1
+
+	sig_fail = iota - 1
+	sig_none
+	sig_PinNeeded
+	sig_PasswordNeeded
+)
+
+// data (message) used to check for protocol version
+var versionCheck = [65]byte{
+	0, 63, 255, 255, 255, // ... 60 bytes following
+}
 
 // handleExchange with signal handling: Should a request require the
 // processing of another request (like PIN/Password entry) first, this
