@@ -1,3 +1,2 @@
-protob/*.pb.go
 test/test
 test/testdata.json

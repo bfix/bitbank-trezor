@@ -48,20 +48,21 @@ To make sure all external dependencies are available, issue the command
 go mod tidy
 ```
 
-## Generating sources from protobuf definitions
+## Generating sources from protobuf definitions (optional)
 
 Change to the `protob` folder that contains the Protobuf definitions for
 messages exchanged with the Trezor. The definition originate from the
 `trezor-firmware` [repository on Github](https://github.com/trezor/trezor-firmware)
-in the folder `common/protob`. These definitions should be up-to-date in
-this module, but if you want to make sure you can copy and prepare the
-definition files with:
+in the folder `common/protob`. These definitions (and the corresponding
+source files) should be up-to-date in this module, but if you want to
+make sure you can copy and prepare the definition files with:
 
 ```bash
 make setup
 ```
 
-In any case you need to generate the Go sources from the definitions with
+After updating the definitions you need to generate the Go sources from
+the definitions with
 
 ```bash
 make build
