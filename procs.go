@@ -17,31 +17,6 @@
 //
 // SPDX-License-Identifier: AGPL3.0-or-later
 //----------------------------------------------------------------------
-// Parts of this implementation are reused (in modified form) from the
-// Go-Ethereum repository at Github (https://github.com/ethereum/go-ethereum/);
-// especially the Trezor-related code at "/accounts/usbwallet/trezor.go"):
-//
-// Copyright 2017 The go-ethereum Authors
-// This file is part of the go-ethereum library.
-//
-// The go-ethereum library is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// The go-ethereum library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public License
-// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
-
-// This file contains the implementation for interacting with the Trezor hardware
-// wallets. The wire protocol spec can be found on the SatoshiLabs website:
-// https://doc.satoshilabs.com/trezor-tech/api-protobuf.html
-//
-//----------------------------------------------------------------------
 
 package trezor
 
@@ -55,6 +30,7 @@ import (
 // Bitcoin and derivates
 //======================================================================
 
+// BitcoinProc for Bitcoin-related methods
 type BitcoinProc struct{}
 
 // DeriveAddress returns an address referenced by the derivation path
@@ -96,6 +72,7 @@ func (p *BitcoinProc) GetXpub(dev *Trezor, path []uint32, coin, mode string) (pk
 // Ethereum and derivates
 //======================================================================
 
+// EthereumProc for Ethereum-related methods
 type EthereumProc struct{}
 
 // DeriveAddress returns an address referenced by the derivation path
