@@ -1,4 +1,4 @@
-module trezor
+module github.com/bfix/bitbank-trezor
 
 go 1.17
 
