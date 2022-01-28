@@ -82,8 +82,12 @@ type Trezor struct {
 
 // Processor interface for common methods
 type Processor interface {
-	GetAddress(dev *Trezor, path []uint32, coin, mode string) (addr string, err error)
 	GetXpub(dev *Trezor, path []uint32, coin, mode string) (pk string, err error)
+	// GetPublicKey(dev *Trezor, path []uint32, coin, mode string) (pk string, err error)
+	GetAddress(dev *Trezor, path []uint32, coin, mode string) (addr string, err error)
+	// SignTx(dev *Trezor, path []uint32, coin, mode string, tx []byte) (sig []byte, err error)
+	// SignMessage(dev *Trezor, path []uint32, coin, mode string, msg []byte) (sig []byte, err error)
+	// VerifyMessage(dev *Trezor, path []uint32, coin, mode string, msg, sig []byte) (ok bool, err error)
 }
 
 // OpenTrezor: open a Trezor connected via USB
@@ -150,6 +154,7 @@ func (t *Trezor) Label() string {
 // High-level device methods (functionality)
 //----------------------------------------------------------------------
 
+// Instantiate and map existing processors.
 var (
 	insts = []Processor{
 		new(BitcoinProc),
