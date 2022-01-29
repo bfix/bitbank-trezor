@@ -286,10 +286,6 @@ func (t *Trezor) handleSignal(sig int, results []protoreflect.ProtoMessage) (don
 	if sig == sig_PasswordNeeded {
 		// Password required? Ask for it:
 		passwd := t.pe.Ask(entryPasswd)
-		if len(passwd) == 0 {
-			err = ErrTrezorPasswordNeeded
-			return
-		}
 		_, _, err = t.exchange(
 			&protob.PassphraseAck{
 				Passphrase: &passwd,
