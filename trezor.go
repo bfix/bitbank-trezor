@@ -388,13 +388,18 @@ func (t *Trezor) exchange(req proto.Message, results ...proto.Message) (res, sig
 		// Trezor is waiting for user confirmation, ack and wait for the next message
 		return t.exchange(&protob.ButtonAck{}, results...)
 	}
-
+	// handle authorization requests
 	if kind == uint16(protob.MessageType_MessageType_PinMatrixRequest) {
 		// Trezor requires a PIN entry
 		sig = sig_PinNeeded
 		return
 	}
-
+	if kind == uint16(protob.MessageType_MessageType_PassphraseRequest) {
+		// Trezor requires a password entry
+		sig = sig_PasswordNeeded
+		return
+	}
+	// locate result record.
 	for i, result := range results {
 		if protob.Type(result) == kind {
 			res = i
