@@ -33,7 +33,7 @@ import (
 // BitcoinProc for Bitcoin-related methods
 type BitcoinProc struct{}
 
-// DeriveAddress returns an address referenced by the derivation path
+// GetAddress returns an address referenced by the derivation path
 func (p *BitcoinProc) GetAddress(dev *Trezor, path []uint32, coin, mode string) (addr string, err error) {
 	// request generic address
 	scriptType := scriptType(mode)
@@ -52,7 +52,7 @@ func (p *BitcoinProc) GetAddress(dev *Trezor, path []uint32, coin, mode string) 
 	return
 }
 
-// PublicMaster returns the master public key for given derivation path
+// GetXpub returns the master public key for given derivation path
 func (p *BitcoinProc) GetXpub(dev *Trezor, path []uint32, coin, mode string) (pk string, err error) {
 	scriptType := scriptType(mode)
 	coinName := coinName(coin)
@@ -75,7 +75,7 @@ func (p *BitcoinProc) GetXpub(dev *Trezor, path []uint32, coin, mode string) (pk
 // EthereumProc for Ethereum-related methods
 type EthereumProc struct{}
 
-// DeriveAddress returns an address referenced by the derivation path
+// GetAddress returns an address referenced by the derivation path
 func (p *EthereumProc) GetAddress(dev *Trezor, path []uint32, coin, mode string) (addr string, err error) {
 	// request generic address
 	req := &protob.EthereumGetAddress{
@@ -85,12 +85,10 @@ func (p *EthereumProc) GetAddress(dev *Trezor, path []uint32, coin, mode string)
 	if err = dev.handleExchange(req, addrMsg); err == nil {
 		addr = addrMsg.GetAddress()
 	}
-	// special post-processing
-	addr = strings.Replace(addr, "bitcoincash:", "", 1)
 	return
 }
 
-// PublicMaster returns the master public key for given derivation path
+// GetXpub returns the master public key for given derivation path
 func (p *EthereumProc) GetXpub(dev *Trezor, path []uint32, coin, mode string) (pk string, err error) {
 	req := &protob.EthereumGetPublicKey{
 		AddressN: path,
