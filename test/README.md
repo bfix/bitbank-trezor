@@ -88,19 +88,3 @@ By default it tries to load the test data from `testdata.json`; you can use
 the `-i` flag to hand in a different file (of same format).
 
 Make sure a Trezor is connected via USB with the computer.
-
-### pin/password entry
-
-If you have protected the Trezor with a pin and/or a password, some functions
-might require you to authorize access by providing pin and/or password.
-
-The test program will do the user interaction on the command line; if a PIN is
-required, the Trezor device will display the pin matrix and the console shows
-a 3x3 matrix with numbers too. Locate the first pin digit position on the Trezor
-and enter the corresponding number shown on the console display. Proceed until
-all pin digits are entered. Press ENTER to submit the entry.
-
-The layout of the numbers to enter corresponds with the ordering of the number
-keys on the number block of your keyboard (on the right side). If you have
-enabled `NUM_LOCK` on your keyboard, you can easily enter the pin using the
-positions on the number block.
